@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Retífica Vision — Registro, Identificação e Envio de Peças de Motores</title>
+    <meta name="description" content="Aplicativo inteligente e offline para registro fotográfico, identificação de peças por IA e envio de resumos para retíficas de motores via WhatsApp e E-mail." />
+    
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- App Container -->
+    <div id="app" class="app-layout">
+
+      <!-- Top Header Navigation -->
+      <header class="app-header" role="banner">
+        <div class="header-brand">
+          <div class="brand-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+          <div class="brand-info">
+            <h1 class="brand-title">RETÍFICA VISION</h1>
+            <p class="brand-subtitle">Registro & Identificação de Peças por IA</p>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <!-- Live Online/Offline Status Pill -->
+          <button id="btn-toggle-network" class="status-pill status-online" title="Clique para simular modo offline/online" aria-label="Status da conexão de rede">
+            <span class="status-indicator"></span>
+            <span id="network-status-text">ONLINE</span>
+          </button>
+
+          <!-- History / Archive Button -->
+          <button id="btn-open-archive" class="btn-icon" title="Ver Histórico de Registros Concluídos" aria-label="Abrir histórico de registros">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/>
+            </svg>
+            <span class="btn-badge" id="archive-count-badge">0</span>
+          </button>
+
+          <!-- Settings Button -->
+          <button id="btn-open-settings" class="btn-icon" title="Configurações da Oficina e IA" aria-label="Abrir configurações">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Simultaneous 4 Folders Navigation (RF15) -->
+      <nav class="folders-bar" aria-label="Navegação entre as 4 pastas simultâneas">
+        <div class="folders-title">
+          <span>PASTAS DE TRABALHO</span>
+          <small class="folders-hint">Até 4 motores simultâneos salvos offline</small>
+        </div>
+        <div class="folders-tabs" id="folders-tab-container">
+          <!-- Tabs 1 to 4 rendered dynamically -->
+        </div>
+      </nav>
+
+      <!-- Main Active Folder Container -->
+      <main class="active-folder-view" id="active-folder-content">
+        <!-- Rendered by main.js -->
+      </main>
+
+      <!-- Print View Container (Hidden on Screen, Visible on Print) -->
+      <section id="print-sheet" class="print-only" aria-hidden="true"></section>
+
+      <!-- Settings Modal -->
+      <div id="modal-settings" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-labelledby="settings-title">
+          <div class="modal-header">
+            <h2 id="settings-title">Configurações da Oficina & IA</h2>
+            <button class="btn-close-modal" id="btn-close-settings" aria-label="Fechar">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="cfg-empresa">Nome da Retífica / Oficina</label>
+              <input type="text" id="cfg-empresa" placeholder="Ex: Retífica Central de Motores" />
+            </div>
+            <div class="form-group">
+              <label for="cfg-whatsapp">Número de WhatsApp Padrão (com DDD)</label>
+              <input type="tel" id="cfg-whatsapp" placeholder="Ex: 11999998888" />
+              <small class="form-hint">Opcional. Se preenchido, o WhatsApp abrirá diretamente para este número.</small>
+            </div>
+            <div class="form-group">
+              <label for="cfg-email">E-mail Destino Padrão</label>
+              <input type="email" id="cfg-email" placeholder="Ex: recepcao@retifica.com.br" />
+            </div>
+            <div class="form-group">
+              <label for="cfg-gemini-key">Chave de API do Google Gemini (Vision)</label>
+              <input type="password" id="cfg-gemini-key" placeholder="AIzaSy..." />
+              <small class="form-hint">Opcional. Quando informado e houver internet, a identificação usará o Gemini Flash. Caso contrário, usa o modelo inteligente offline local.</small>
+            </div>
+            <div class="form-toggle-row">
+              <label class="toggle-switch">
+                <input type="checkbox" id="cfg-sound-toggle" checked />
+                <span class="toggle-slider"></span>
+              </label>
+              <div class="toggle-label">
+                <strong>Feedback Sonoro da Oficina</strong>
+                <small>Sons sintéticos de clique, câmera e confirmação</small>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="btn-cancel-settings">Cancelar</button>
+            <button class="btn btn-primary" id="btn-save-settings">Salvar Configurações</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Archive / History Modal -->
+      <div id="modal-archive" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card modal-large" role="dialog" aria-labelledby="archive-title">
+          <div class="modal-header">
+            <h2 id="archive-title">Histórico de Registros Concluídos</h2>
+            <button class="btn-close-modal" id="btn-close-archive" aria-label="Fechar">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="archive-search-bar">
+              <input type="search" id="archive-search-input" placeholder="Buscar por placa ou nº do motor..." />
+            </div>
+            <div id="archive-list" class="archive-items-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="btn-dismiss-archive">Fechar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Photo Zoom Modal -->
+      <div id="modal-photo-zoom" class="modal-backdrop zoom-backdrop" aria-hidden="true">
+        <div class="zoom-container">
+          <button class="btn-close-modal zoom-close" id="btn-close-zoom">✕</button>
+          <img id="zoom-image-element" src="" alt="Foto ampliada para conferência" />
+          <p id="zoom-image-caption" class="zoom-caption"></p>
+        </div>
+      </div>
+
+      <!-- Hidden file inputs for camera / gallery -->
+      <input type="file" id="file-input-placa" accept="image/*" capture="environment" style="display: none;" />
+      <input type="file" id="file-input-pecas" accept="image/*" capture="environment" multiple style="display: none;" />
+
+      <!-- Live Camera Viewfinder Modal -->
+      <div id="modal-live-camera" class="modal-backdrop camera-backdrop" aria-hidden="true">
+        <div class="camera-viewport-card" role="dialog" aria-labelledby="camera-target-label">
+          <div class="camera-viewport-header">
+            <span id="camera-target-label" class="camera-title-badge">CÂMERA DE OFICINA</span>
+            <button class="btn-close-modal" id="btn-close-live-camera" aria-label="Fechar Câmera">✕</button>
+          </div>
+          
+          <div class="camera-video-wrapper">
+            <video id="camera-video-stream" autoplay playsinline muted></video>
+            <canvas id="camera-hidden-canvas" style="display: none;"></canvas>
+            
+            <!-- Alignment Reticle Guide Overlay -->
+            <div class="camera-guide-overlay" id="camera-guide-overlay">
+              <div class="camera-guide-reticle" id="camera-guide-reticle">
+                <span class="guide-corner top-left"></span>
+                <span class="guide-corner top-right"></span>
+                <span class="guide-corner bottom-left"></span>
+                <span class="guide-corner bottom-right"></span>
+                <span class="guide-hint-text" id="camera-guide-hint">Centralize a peça ou placa aqui</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="camera-viewport-controls">
+            <button class="btn-camera-opt" id="btn-camera-switch-lens" title="Alternar Câmera Frontal/Traseira">
+              🔄
+            </button>
+
+            <!-- Big Shutter Button -->
+            <button class="btn-camera-shutter" id="btn-camera-shutter" aria-label="Capturar Foto">
+              <div class="shutter-inner"></div>
+            </button>
+
+            <button class="btn-camera-opt" id="btn-camera-toggle-flash" title="Luz / Lanterna">
+              💡
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification Toast -->
+      <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    </div>
+
+    <!-- Application Script -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
