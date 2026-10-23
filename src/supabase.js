@@ -82,7 +82,7 @@ export function folderToDb(f) {
     pecas_identificadas: Array.isArray(f.pecasIdentificadas) ? f.pecasIdentificadas : [],
     observacoes: f.observacoes || '',
     estado_cabecote: f.estadoCabecote || '',
-    oficina_nome: f.oficinaNome || 'Retífica Especializada',
+    oficina_nome: f.oficinaNome || 'Retífica de Motores Nova Opção',
     procedimentos: Array.isArray(f.procedimentos) ? f.procedimentos : [],
     procedimentos_texto: f.procedimentosTexto || '',
     localizacao: f.localizacao || { texto: '', coords: null, mapsUrl: '' },
@@ -105,7 +105,7 @@ export function folderFromDb(row) {
     pecasIdentificadas: Array.isArray(row.pecas_identificadas) ? row.pecas_identificadas : [],
     observacoes: row.observacoes || '',
     estadoCabecote: row.estado_cabecote || '',
-    oficinaNome: row.oficina_nome || 'Retífica Especializada',
+    oficinaNome: row.oficina_nome || 'Retífica de Motores Nova Opção',
     procedimentos: Array.isArray(row.procedimentos) ? row.procedimentos : [],
     procedimentosTexto: row.procedimentos_texto || '',
     localizacao: row.localizacao || { texto: '', coords: null, mapsUrl: '' },
@@ -124,7 +124,7 @@ export function archiveToDb(a) {
     status: a.status || 'concluido',
     placa: a.placa || '',
     motor_num: a.motorNum || '',
-    oficina_nome: a.oficinaNome || 'Retífica Especializada',
+    oficina_nome: a.oficinaNome || 'Retífica de Motores Nova Opção',
     estado_cabecote: a.estadoCabecote || '',
     observacoes: a.observacoes || '',
     procedimentos: Array.isArray(a.procedimentos) ? a.procedimentos : [],
@@ -148,7 +148,7 @@ export function archiveFromDb(row) {
     status: row.status || 'concluido',
     placa: row.placa || '',
     motorNum: row.motor_num || '',
-    oficinaNome: row.oficina_nome || 'Retífica Especializada',
+    oficinaNome: row.oficina_nome || 'Retífica de Motores Nova Opção',
     estadoCabecote: row.estado_cabecote || '',
     observacoes: row.observacoes || '',
     procedimentos: Array.isArray(row.procedimentos) ? row.procedimentos : [],
@@ -252,7 +252,7 @@ export async function getSettingsFromCloud() {
 
     if (error || !data) return null;
     return {
-      empresaNome: data.empresa_nome || 'Retífica Especializada',
+      empresaNome: data.empresa_nome || 'Retífica de Motores Nova Opção',
       telefoneWhatsApp: data.telefone_whatsapp || '',
       emailDestino: data.email_destino || '',
       geminiApiKey: data.gemini_api_key || '',
@@ -274,7 +274,7 @@ export async function saveSettingsToCloud(settings) {
       .from('configuracoes')
       .upsert({
         id: 1,
-        empresa_nome: settings.empresaNome || 'Retífica Especializada',
+        empresa_nome: settings.empresaNome || 'Retífica de Motores Nova Opção',
         telefone_whatsapp: settings.telefoneWhatsApp || '',
         email_destino: settings.emailDestino || '',
         gemini_api_key: settings.geminiApiKey || '',

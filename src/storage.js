@@ -19,6 +19,7 @@ import {
 const FOLDERS_KEY = 'retifica_folders_v1';
 const ARCHIVE_KEY = 'retifica_archive_v1';
 const SETTINGS_KEY = 'retifica_settings_v1';
+export const DEFAULT_WORKSHOP_NAME = 'Retífica de Motores Nova Opção';
 
 // Configure localForage (IndexedDB)
 localforage.config({
@@ -28,14 +29,14 @@ localforage.config({
 });
 
 export const INITIAL_FOLDERS = [
-  { id: 1, name: 'Pasta 1', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: 'Retífica Especializada', procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null },
-  { id: 2, name: 'Pasta 2', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: 'Retífica Especializada', procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null },
-  { id: 3, name: 'Pasta 3', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: 'Retífica Especializada', procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null },
-  { id: 4, name: 'Pasta 4', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: 'Retífica Especializada', procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null }
+  { id: 1, name: 'Pasta 1', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: DEFAULT_WORKSHOP_NAME, procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null },
+  { id: 2, name: 'Pasta 2', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: DEFAULT_WORKSHOP_NAME, procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null },
+  { id: 3, name: 'Pasta 3', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: DEFAULT_WORKSHOP_NAME, procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null },
+  { id: 4, name: 'Pasta 4', status: 'livre', placa: '', motorNum: '', fotosPeca: [], fotoPlaca: null, pecasIdentificadas: [], observacoes: '', estadoCabecote: '', oficinaNome: DEFAULT_WORKSHOP_NAME, procedimentos: [], procedimentosTexto: '', localizacao: { texto: '', coords: null, mapsUrl: '' }, updatedAt: null }
 ];
 
 export const INITIAL_SETTINGS = {
-  empresaNome: 'Retífica Especializada',
+  empresaNome: DEFAULT_WORKSHOP_NAME,
   telefoneWhatsApp: '',
   emailDestino: '',
   geminiApiKey: '',
@@ -46,6 +47,16 @@ export const INITIAL_SETTINGS = {
 export { supabase, isSupabaseConfigured, testSupabaseConnection };
 
 /**
+ * Normalizes workshop name away from legacy defaults
+ */
+function normalizeOficina(name) {
+  if (!name || name === 'Retífica Especializada') {
+    return DEFAULT_WORKSHOP_NAME;
+  }
+  return name;
+}
+
+/**
  * Load 4 folders: tries Supabase first, falls back to IndexedDB
  */
 export async function loadFolders() {
@@ -54,9 +65,12 @@ export async function loadFolders() {
     try {
       const cloudFolders = await getFoldersFromCloud();
       if (cloudFolders && Array.isArray(cloudFolders) && cloudFolders.length === 4) {
-        // Atualiza cache local
-        await localforage.setItem(FOLDERS_KEY, cloudFolders);
-        return cloudFolders;
+        const normalized = cloudFolders.map(f => ({
+          ...f,
+          oficinaNome: normalizeOficina(f.oficinaNome)
+        }));
+        await localforage.setItem(FOLDERS_KEY, normalized);
+        return normalized;
       }
     } catch (err) {
       console.warn('Falha ao obter pastas do Supabase, usando armazenamento local:', err);
@@ -67,14 +81,16 @@ export async function loadFolders() {
   try {
     const data = await localforage.getItem(FOLDERS_KEY);
     if (data && Array.isArray(data) && data.length === 4) {
-      return data.map((f, i) => ({
+      const updated = data.map((f, i) => ({
         ...INITIAL_FOLDERS[i],
         ...f,
-        oficinaNome: f.oficinaNome || 'Retífica Especializada',
+        oficinaNome: normalizeOficina(f.oficinaNome),
         procedimentos: Array.isArray(f.procedimentos) ? f.procedimentos : [],
         procedimentosTexto: f.procedimentosTexto || '',
         localizacao: f.localizacao || { texto: '', coords: null, mapsUrl: '' }
       }));
+      await localforage.setItem(FOLDERS_KEY, updated);
+      return updated;
     }
     await saveFolders(INITIAL_FOLDERS);
     return JSON.parse(JSON.stringify(INITIAL_FOLDERS));
@@ -113,6 +129,7 @@ export async function loadSettings() {
       if (cloudSettings) {
         const localSettings = await localforage.getItem(SETTINGS_KEY);
         const merged = { ...INITIAL_SETTINGS, ...(localSettings || {}), ...cloudSettings };
+        merged.empresaNome = normalizeOficina(merged.empresaNome);
         await localforage.setItem(SETTINGS_KEY, merged);
         return merged;
       }
@@ -123,7 +140,9 @@ export async function loadSettings() {
 
   try {
     const data = await localforage.getItem(SETTINGS_KEY);
-    return data ? { ...INITIAL_SETTINGS, ...data } : { ...INITIAL_SETTINGS };
+    const settings = data ? { ...INITIAL_SETTINGS, ...data } : { ...INITIAL_SETTINGS };
+    settings.empresaNome = normalizeOficina(settings.empresaNome);
+    return settings;
   } catch (err) {
     return { ...INITIAL_SETTINGS };
   }
@@ -177,6 +196,7 @@ export async function archiveFolder(folder) {
     const history = await loadArchive();
     const entry = {
       ...folder,
+      oficinaNome: normalizeOficina(folder.oficinaNome),
       archivedAt: new Date().toISOString(),
       idRegistro: 'REG-' + Date.now().toString().slice(-6)
     };

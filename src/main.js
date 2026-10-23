@@ -4,7 +4,7 @@
  * workshop procedures, GPS location, review, sharing & offline storage.
  */
 
-import { loadFolders, saveFolders, loadSettings, saveSettings, loadArchive, archiveFolder, INITIAL_FOLDERS, testSupabaseConnection, isSupabaseConfigured } from './storage.js';
+import { loadFolders, saveFolders, loadSettings, saveSettings, loadArchive, archiveFolder, INITIAL_FOLDERS, testSupabaseConnection, isSupabaseConfigured, DEFAULT_WORKSHOP_NAME } from './storage.js';
 import { 
   validateEmail, 
   checkPasswordStrength, 
@@ -15,7 +15,14 @@ import {
   getCurrentSession 
 } from './supabase.js';
 import { analyzeEnginePhotos, COMMON_EXTRA_PARTS } from './ai-service.js';
-import { shareViaWhatsApp, shareViaEmail, copyToClipboard, buildTextSummary } from './sharing.js';
+import { 
+  shareViaWhatsApp, 
+  shareDraftWithPhotos, 
+  downloadDraftImage, 
+  shareViaEmail, 
+  copyToClipboard, 
+  buildTextSummary 
+} from './sharing.js';
 import { playSound } from './audio-feedback.js';
 import confetti from 'canvas-confetti';
 
@@ -298,6 +305,42 @@ function setupHeaderEvents() {
 }
 
 /**
+ * Image compression utility — resizes to max 1200px and re-encodes at 82% JPEG quality.
+ * Prevents storage failures from oversized base64 strings in IndexedDB & Supabase JSONB.
+ * @param {string} dataUrl - Input base64 data URL
+ * @param {number} maxSize - Max width/height in pixels (default 1200)
+ * @param {number} quality - JPEG quality 0-1 (default 0.82)
+ * @returns {Promise<string>} Compressed base64 data URL
+ */
+function compressImage(dataUrl, maxSize = 1200, quality = 0.82) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width <= maxSize && height <= maxSize) {
+        resolve(dataUrl); // already small enough
+        return;
+      }
+      if (width > height) {
+        height = Math.round((height / width) * maxSize);
+        width = maxSize;
+      } else {
+        width = Math.round((width / height) * maxSize);
+        height = maxSize;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback to original on error
+    img.src = dataUrl;
+  });
+}
+
+/**
  * Live Camera Viewfinder Controller
  */
 function setupLiveCameraEvents() {
@@ -401,7 +444,7 @@ function triggerFileFallback() {
   }
 }
 
-function captureLivePhoto() {
+async function captureLivePhoto() {
   const videoElem = document.getElementById('camera-video-stream');
   const canvas = document.getElementById('camera-hidden-canvas');
   if (!videoElem || !videoElem.videoWidth) {
@@ -414,8 +457,11 @@ function captureLivePhoto() {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
 
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
   playSound('shutter', appSettings.somAtivado);
+
+  // Compress to prevent storage failures with oversized images
+  const dataUrl = await compressImage(rawDataUrl, 1200, 0.82);
 
   const currentFolder = folders.find(f => f.id === activeFolderId);
   if (cameraCaptureTarget === 'placa') {
@@ -544,7 +590,7 @@ function formatStatusLabel(status) {
  */
 function renderActiveFolder() {
   const currentFolder = folders.find(f => f.id === activeFolderId) || folders[0];
-  const oficina = currentFolder.oficinaNome || appSettings.empresaNome || 'Retífica Especializada';
+  const oficina = currentFolder.oficinaNome || appSettings.empresaNome || DEFAULT_WORKSHOP_NAME;
 
   activeFolderContent.innerHTML = `
     <div class="folder-hero">
@@ -560,6 +606,9 @@ function renderActiveFolder() {
           <span class="folder-badge-status badge-${currentFolder.status}">${formatStatusLabel(currentFolder.status)}</span>
         </div>
         <div class="folder-hero-actions">
+          <button class="btn btn-whatsapp" id="btn-hero-share-photos" title="Enviar rascunho com fotos pelo WhatsApp">
+            📸 Rascunho c/ Fotos
+          </button>
           <button class="btn btn-secondary" id="btn-save-draft" title="Salvar rascunho localmente">
             💾 Salvar Rascunho
           </button>
@@ -780,9 +829,14 @@ function renderStep3IA(folder) {
 
           <!-- Identified Items List -->
           <div>
-            <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">
-              Itens Identificados nas Fotos (${items.length}):
-            </h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.4rem;">
+              <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0;">
+                Itens Conferidos (${items.length}):
+              </h4>
+              <small style="color: var(--accent-amber); font-weight: 600; font-size: 0.8rem;">
+                💡 Ajuste a quantidade com [-] e [+] ou clique no número
+              </small>
+            </div>
 
             <div class="parts-list-container" id="parts-list-container">
               ${items.length > 0 ? items.map((p, idx) => `
@@ -794,22 +848,40 @@ function renderStep3IA(folder) {
                       ${p.detalhe ? `<div class="part-detail">${p.detalhe}</div>` : ''}
                     </div>
                   </div>
-                  <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span class="part-badge-confidence conf-${p.status || 'alta'}">${p.confianca || 90}% Confiança</span>
+                  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <!-- Editable Quantity Controls -->
+                    <div class="part-qty-controls" title="Ajustar quantidade">
+                      <button type="button" class="btn-qty-minus" data-idx="${idx}" title="Diminuir">−</button>
+                      <span class="part-qty-display" data-idx="${idx}" title="Clique para digitar quantidade">${p.quantidade || 1} un.</span>
+                      <button type="button" class="btn-qty-plus" data-idx="${idx}" title="Aumentar">+</button>
+                    </div>
+                    <span class="part-badge-confidence conf-${p.status || 'alta'}">${p.confianca || 90}% Conf.</span>
                     <button class="part-remove-btn" data-idx="${idx}" title="Remover item">🗑️</button>
                   </div>
                 </div>
               `).join('') : `
                 <div style="padding: 1.5rem; text-align: center; background: var(--bg-darker); border-radius: var(--radius-md); color: var(--text-secondary);">
-                  Clique em "Executar Análise Inteligente de Peças" ou adicione itens manualmente abaixo.
+                  Clique em "Executar Análise Inteligente de Peças" ou adicione itens rapidamente abaixo.
                 </div>
               `}
             </div>
           </div>
 
+          <!-- Quick-Add Extra Parts Chips (COMMON_EXTRA_PARTS) -->
+          <div style="margin-top: 1.25rem;">
+            <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em;">
+              ➕ Adicionar Peças Extras Rapidamente:
+            </h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+              ${COMMON_EXTRA_PARTS.map(part => `
+                <button class="chip-btn" data-part="${part}" title="Adicionar ${part}">${part}</button>
+              `).join('')}
+            </div>
+          </div>
+
           <!-- Manual Part Entry -->
           <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary" id="btn-custom-part" style="flex: 1; border-color: rgba(6,182,212,0.4); color: var(--accent-cyan);">+ Adicionar Peça Manualmente</button>
+            <button class="btn btn-secondary" id="btn-custom-part" style="flex: 1; border-color: rgba(6,182,212,0.4); color: var(--accent-cyan);">+ Adicionar Peça Personalizada</button>
           </div>
 
         </div>
@@ -845,7 +917,7 @@ function renderStep4ProcedimentosMotor(folder) {
         <!-- 1. Nome da Oficina -->
         <div class="form-group">
           <label for="input-oficina-nome">🏢 Nome da Oficina / Retífica Responsável</label>
-          <input type="text" id="input-oficina-nome" placeholder="Ex: Retífica Central de Motores" value="${folder.oficinaNome || appSettings.empresaNome || 'Retífica Especializada'}" />
+          <input type="text" id="input-oficina-nome" placeholder="Ex: Retífica de Motores Nova Opção" value="${folder.oficinaNome || appSettings.empresaNome || DEFAULT_WORKSHOP_NAME}" />
           <small class="form-hint">Este nome aparecerá em todos os resumos, comprovantes e mensagens de WhatsApp.</small>
         </div>
 
@@ -932,20 +1004,20 @@ function renderStep5Resumo(folder) {
   const pecas = folder.pecasIdentificadas || [];
   const fotos = folder.fotosPeca || [];
   const procs = folder.procedimentos || [];
-  const oficina = folder.oficinaNome || appSettings.empresaNome || 'RETÍFICA ESPECIALIZADA';
+  const oficina = folder.oficinaNome || appSettings.empresaNome || DEFAULT_WORKSHOP_NAME;
 
   return `
     <section class="step-panel ${activeStep === 5 ? 'active' : ''}" id="step-panel-5">
       <div class="panel-card">
         <div class="panel-header">
           <h3>📋 5. Resumo Oficial & Compartilhamento</h3>
-          <p>Revise todos os dados e envie por WhatsApp ou E-mail com a identificação completa da oficina.</p>
+          <p>Revise todos os dados e envie por WhatsApp com fotos do rascunho ou como resumo direto essencial.</p>
         </div>
 
         <!-- Printable White Receipt Card -->
         <div class="receipt-card" id="receipt-preview-card">
           <div class="receipt-header">
-            <h4>${oficina}</h4>
+            <h4>${oficina.toUpperCase()}</h4>
             <p>ORDEM DE REGISTRO & PROCEDIMENTOS DE RETÍFICA</p>
             ${folder.localizacao?.texto ? `<small style="color: #475569; font-weight: 600;">📍 ${folder.localizacao.texto}</small>` : ''}
           </div>
@@ -995,7 +1067,7 @@ function renderStep5Resumo(folder) {
             <div class="receipt-section-title">Peças Conferidas (${pecas.length}):</div>
             <ul class="receipt-parts-list">
               ${pecas.length > 0 ? pecas.map((p, i) => `
-                <li>✔️ <strong>${p.nome}</strong> ${p.detalhe ? `— <small style="color: #64748b;">${p.detalhe}</small>` : ''}</li>
+                <li>✔️ <strong>${p.quantidade && p.quantidade > 1 ? `[${p.quantidade}x] ` : ''}${p.nome}</strong> ${p.detalhe ? `— <small style="color: #64748b;">${p.detalhe}</small>` : ''}</li>
               `).join('') : `
                 <li style="color: #94a3b8;">Nenhuma peça registrada</li>
               `}
@@ -1021,13 +1093,22 @@ function renderStep5Resumo(folder) {
           ` : ''}
         </div>
 
-        <!-- Sharing Actions Row -->
-        <div class="action-row">
-          <button class="btn btn-whatsapp" id="btn-share-whatsapp" style="flex: 1;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <!-- Sharing Actions: Primary Image & WhatsApp Sharing -->
+        <div class="action-row" style="gap: 0.75rem;">
+          <button class="btn btn-whatsapp" id="btn-share-draft-photos" style="flex: 1.2; font-size: 1rem; box-shadow: 0 4px 18px rgba(37, 211, 102, 0.35);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/>
             </svg>
-            Enviar por WhatsApp
+            📸 Enviar Rascunho com Fotos
+          </button>
+          <button class="btn btn-primary" id="btn-download-draft-img" style="flex: 1;">
+            🖼️ Baixar Card (PNG)
+          </button>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-secondary" id="btn-share-whatsapp" style="flex: 1;">
+            💬 Enviar WhatsApp (Texto Resumido)
           </button>
           <button class="btn btn-secondary" id="btn-share-email" style="flex: 1;">
             ✉️ Enviar por E-mail
@@ -1036,7 +1117,7 @@ function renderStep5Resumo(folder) {
 
         <div class="action-row">
           <button class="btn btn-secondary" id="btn-copy-summary">
-            📋 Copiar Texto do Resumo
+            📋 Copiar Resumo Essencial
           </button>
           <button class="btn btn-secondary" id="btn-print-receipt">
             🖨️ Imprimir Comprovante
@@ -1198,12 +1279,10 @@ function attachFolderEvents(folder) {
   const btnRunAI = document.getElementById('btn-run-ai-scan');
   if (btnRunAI) {
     btnRunAI.addEventListener('click', async () => {
+      // Only analyze part photos (fotosPeca), NOT the plate photo (fotoPlaca)
       const allPhotos = [];
       if (folder.fotosPeca && folder.fotosPeca.length > 0) {
         allPhotos.push(...folder.fotosPeca);
-      }
-      if (folder.fotoPlaca) {
-        allPhotos.push(folder.fotoPlaca);
       }
 
       if (allPhotos.length === 0) {
@@ -1257,6 +1336,52 @@ function attachFolderEvents(folder) {
       });
     });
 
+    // Quantity minus button
+    document.querySelectorAll('.btn-qty-minus').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const item = folder.pecasIdentificadas[idx];
+        if (item) {
+          item.quantidade = Math.max(1, (item.quantidade || 1) - 1);
+          await saveFolders(folders);
+          playSound('click', appSettings.somAtivado);
+          renderApp();
+        }
+      });
+    });
+
+    // Quantity plus button
+    document.querySelectorAll('.btn-qty-plus').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const item = folder.pecasIdentificadas[idx];
+        if (item) {
+          item.quantidade = (item.quantidade || 1) + 1;
+          await saveFolders(folders);
+          playSound('click', appSettings.somAtivado);
+          renderApp();
+        }
+      });
+    });
+
+    // Direct quantity click to type number
+    document.querySelectorAll('.part-qty-display').forEach(disp => {
+      disp.addEventListener('click', async () => {
+        const idx = parseInt(disp.getAttribute('data-idx'), 10);
+        const item = folder.pecasIdentificadas[idx];
+        if (item) {
+          const resp = prompt(`Digite a quantidade para ${item.nome}:`, item.quantidade || 1);
+          const num = parseInt(resp, 10);
+          if (!isNaN(num) && num > 0) {
+            item.quantidade = num;
+            await saveFolders(folders);
+            playSound('click', appSettings.somAtivado);
+            renderApp();
+          }
+        }
+      });
+    });
+
     // Remove part
     document.querySelectorAll('.part-remove-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -1268,13 +1393,32 @@ function attachFolderEvents(folder) {
       });
     });
 
-    // Quick chips add
+    // Quick chips add with smart default quantities
     document.querySelectorAll('.chip-btn[data-part]').forEach(chip => {
       chip.addEventListener('click', async () => {
         const partName = chip.getAttribute('data-part');
+        if (!folder.pecasIdentificadas) folder.pecasIdentificadas = [];
+        // Avoid adding the exact same part twice
+        const alreadyAdded = folder.pecasIdentificadas.some(p => p.nome === partName);
+        if (alreadyAdded) {
+          showToast(`${partName} já está na lista!`, 'warning');
+          return;
+        }
+
+        let initialQty = 1;
+        const lower = partName.toLowerCase();
+        if (lower.includes('biela') || lower.includes('pist')) {
+          initialQty = 4;
+        } else if (lower.includes('mancai')) {
+          initialQty = 5;
+        } else if (lower.includes('válvula') || lower.includes('mola')) {
+          initialQty = 8;
+        }
+
         folder.pecasIdentificadas.push({
           id: 'manual_' + Date.now(),
           nome: partName,
+          quantidade: initialQty,
           confianca: 100,
           status: 'alta',
           categoria: 'acessorio',
@@ -1282,7 +1426,7 @@ function attachFolderEvents(folder) {
         });
         await saveFolders(folders);
         playSound('click', appSettings.somAtivado);
-        showToast(`${partName} adicionado!`, 'success');
+        showToast(`${partName} (${initialQty} un.) adicionado!`, 'success');
         renderApp();
       });
     });
@@ -1290,13 +1434,17 @@ function attachFolderEvents(folder) {
     document.getElementById('btn-custom-part')?.addEventListener('click', async () => {
       const nome = prompt('Digite o nome da peça para adicionar:');
       if (nome && nome.trim()) {
+        const qtdStr = prompt('Quantidade desta peça:', '1');
+        const qtd = parseInt(qtdStr, 10) || 1;
+        if (!folder.pecasIdentificadas) folder.pecasIdentificadas = [];
         folder.pecasIdentificadas.push({
           id: 'manual_' + Date.now(),
           nome: nome.trim(),
+          quantidade: qtd,
           confianca: 100,
           status: 'alta',
           categoria: 'acessorio',
-          detalhe: 'Adicionado pelo retificador'
+          detalhe: 'Adicionado manualmente'
         });
         await saveFolders(folders);
         playSound('click', appSettings.somAtivado);
@@ -1382,7 +1530,65 @@ function attachFolderEvents(folder) {
     });
   }
 
+  // HERO BUTTON: Share Draft with Photos
+  const btnHeroSharePhotos = document.getElementById('btn-hero-share-photos');
+  if (btnHeroSharePhotos) {
+    btnHeroSharePhotos.addEventListener('click', async () => {
+      playSound('click', appSettings.somAtivado);
+      showToast('Preparando rascunho com fotos...', 'info');
+      try {
+        const res = await shareDraftWithPhotos(folder, appSettings);
+        if (res.success) {
+          playSound('success', appSettings.somAtivado);
+          folder.status = 'enviada';
+          folder.updatedAt = new Date().toISOString();
+          await saveFolders(folders);
+          renderFoldersTabs();
+          showToast('Rascunho com fotos compartilhado!', 'success');
+        }
+      } catch (err) {
+        showToast('Erro ao compartilhar fotos: ' + (err.message || err), 'warning');
+      }
+    });
+  }
+
   // STEP 5 EVENTS (Resumo & Envio)
+  const btnShareDraftPhotos = document.getElementById('btn-share-draft-photos');
+  if (btnShareDraftPhotos) {
+    btnShareDraftPhotos.addEventListener('click', async () => {
+      playSound('click', appSettings.somAtivado);
+      showToast('Preparando rascunho com fotos...', 'info');
+      try {
+        const res = await shareDraftWithPhotos(folder, appSettings);
+        if (res.success) {
+          playSound('success', appSettings.somAtivado);
+          folder.status = 'enviada';
+          folder.updatedAt = new Date().toISOString();
+          await saveFolders(folders);
+          renderFoldersTabs();
+          showToast('Rascunho com fotos compartilhado!', 'success');
+        }
+      } catch (err) {
+        showToast('Erro ao compartilhar fotos: ' + (err.message || err), 'warning');
+      }
+    });
+  }
+
+  const btnDownloadDraftImg = document.getElementById('btn-download-draft-img');
+  if (btnDownloadDraftImg) {
+    btnDownloadDraftImg.addEventListener('click', async () => {
+      playSound('click', appSettings.somAtivado);
+      showToast('Gerando card em imagem de alta definição...', 'info');
+      try {
+        await downloadDraftImage(folder, appSettings);
+        playSound('success', appSettings.somAtivado);
+        showToast('Imagem do rascunho baixada com sucesso!', 'success');
+      } catch (err) {
+        showToast('Erro ao gerar imagem do rascunho: ' + (err.message || err), 'warning');
+      }
+    });
+  }
+
   const btnShareWhatsApp = document.getElementById('btn-share-whatsapp');
   if (btnShareWhatsApp) {
     btnShareWhatsApp.addEventListener('click', async () => {
@@ -1482,8 +1688,10 @@ function handlePlacaFileSelect(e) {
   const reader = new FileReader();
   reader.onload = async (evt) => {
     playSound('shutter', appSettings.somAtivado);
+    // Compress before saving to prevent storage failures
+    const compressed = await compressImage(evt.target.result, 1200, 0.82);
     const currentFolder = folders.find(f => f.id === activeFolderId);
-    currentFolder.fotoPlaca = evt.target.result;
+    currentFolder.fotoPlaca = compressed;
     if (currentFolder.status === 'livre') currentFolder.status = 'em_preenchimento';
     currentFolder.updatedAt = new Date().toISOString();
     await saveFolders(folders);
@@ -1507,7 +1715,9 @@ function handlePecasFileSelect(e) {
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      currentFolder.fotosPeca.push(evt.target.result);
+      // Compress each photo to prevent storage failures from oversized base64
+      const compressed = await compressImage(evt.target.result, 1200, 0.82);
+      currentFolder.fotosPeca.push(compressed);
       loaded++;
       if (loaded === files.length) {
         playSound('shutter', appSettings.somAtivado);
@@ -1958,7 +2168,7 @@ async function initAuth() {
       await enterApp({
         email: 'mecanico.demo@retifica.local',
         name: 'Mecânico Convidado',
-        workshop: 'Retífica Especializada'
+        workshop: DEFAULT_WORKSHOP_NAME
       });
     });
   }
