@@ -41,10 +41,14 @@ export const COMMON_EXTRA_PARTS = [
  * @returns {Promise<{items: Array<{id: string, nome: string, confianca: number, status: string, categoria: string}>, estadoCabecote: string, observacoesIA: string}>}
  */
 export async function analyzeEnginePhotos(photosBase64, apiKey = '', isOffline = false) {
-  // If user provided Gemini API key and we are online, call Google Gemini Vision API
-  if (apiKey && !isOffline && navigator.onLine) {
+  // Check parameter key or environment variable configured in Vercel / .env
+  const envKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || '';
+  const effectiveKey = (apiKey || envKey || '').trim();
+
+  // If Gemini API key is available and we are online, call Google Gemini Vision API
+  if (effectiveKey && !isOffline && navigator.onLine) {
     try {
-      return await callGeminiVision(photosBase64, apiKey);
+      return await callGeminiVision(photosBase64, effectiveKey);
     } catch (err) {
       console.warn('Falha na chamada ao Gemini Vision, acionando motor offline local:', err);
     }
