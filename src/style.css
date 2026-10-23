@@ -909,18 +909,21 @@ button, input, textarea, select {
 }
 
 .conf-alta {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: rgba(5, 150, 105, 0.20);
+  color: #059669;
+  border: 1px solid rgba(5, 150, 105, 0.35);
 }
 
 .conf-media {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  background: rgba(180, 83, 9, 0.20);
+  color: #b45309;
+  border: 1px solid rgba(180, 83, 9, 0.35);
 }
 
 .conf-baixa {
-  background: rgba(244, 63, 94, 0.15);
-  color: #fb7185;
+  background: rgba(185, 28, 28, 0.20);
+  color: #b91c1c;
+  border: 1px solid rgba(185, 28, 28, 0.35);
 }
 
 .part-remove-btn {

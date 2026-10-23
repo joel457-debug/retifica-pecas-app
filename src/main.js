@@ -653,9 +653,6 @@ function renderStep1Placa(folder) {
           <button class="btn btn-secondary" id="btn-upload-placa">
             📁 Arquivo do Aparelho
           </button>
-          <button class="btn btn-secondary" id="btn-sample-placa" title="Usar foto de placa real da oficina">
-            🧪 Usar Foto de Exemplo (Mercosul)
-          </button>
         </div>
 
         <div class="action-row" style="margin-top: 1.5rem; justify-content: flex-end;">
@@ -688,9 +685,6 @@ function renderStep2Pecas(folder) {
           </button>
           <button class="btn btn-secondary" id="btn-upload-pecas">
             📁 Adicionar Fotos do Aparelho
-          </button>
-          <button class="btn btn-secondary" id="btn-sample-pecas">
-            🧪 Carregar Peças de Exemplo da Oficina
           </button>
         </div>
 
@@ -813,15 +807,9 @@ function renderStep3IA(folder) {
             </div>
           </div>
 
-          <!-- Quick Extra Workshop Chips -->
-          <div class="quick-chips-box">
-            <div class="quick-chips-title">+ ADICIONAR OUTRA PEÇA MANUALMENTE:</div>
-            <div class="chips-wrapper">
-              ${COMMON_EXTRA_PARTS.map(partName => `
-                <button class="chip-btn" data-part="${partName}">+ ${partName}</button>
-              `).join('')}
-              <button class="chip-btn" id="btn-custom-part" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">+ Digitar Outra Peça...</button>
-            </div>
+          <!-- Manual Part Entry -->
+          <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" id="btn-custom-part" style="flex: 1; border-color: rgba(6,182,212,0.4); color: var(--accent-cyan);">+ Adicionar Peça Manualmente</button>
           </div>
 
         </div>
@@ -913,15 +901,8 @@ function renderStep4ProcedimentosMotor(folder) {
         <!-- 4. Número do Motor -->
         <div class="form-group" style="margin-top: 1.25rem;">
           <label for="input-motor-num">⚙️ Número do Motor (Gravação do Bloco)</label>
-          <input type="text" id="input-motor-num" class="input-huge" placeholder="EA111-987654" value="${folder.motorNum || ''}" />
-          <small class="form-hint">Atalhos rápidos de prefixos:</small>
-          <div class="chips-wrapper" style="margin-top: 0.5rem;">
-            <button class="chip-btn chip-prefix" data-prefix="EA111-">EA111 (VW)</button>
-            <button class="chip-btn chip-prefix" data-prefix="AP1.8-">AP 1.8 (VW)</button>
-            <button class="chip-btn chip-prefix" data-prefix="MWM-6.10-">MWM 6.10</button>
-            <button class="chip-btn chip-prefix" data-prefix="FIRE-1.0-">FIRE 1.0 (Fiat)</button>
-            <button class="chip-btn chip-prefix" data-prefix="ZETEC-ROCAM-">Zetec RoCam</button>
-          </div>
+          <input type="text" id="input-motor-num" class="input-huge" placeholder="Ex: EA111-987654 ou AP1.8-456789" value="${folder.motorNum || ''}" />
+          <small class="form-hint">Digite o número exato gravado no bloco do motor.</small>
         </div>
 
         <!-- 5. Outras Observações Gerais -->
@@ -1153,17 +1134,6 @@ function attachFolderEvents(folder) {
       setTimeout(() => fileInputPlaca.setAttribute('capture', 'environment'), 1000);
     });
 
-    document.getElementById('btn-sample-placa').addEventListener('click', async () => {
-      playSound('shutter', appSettings.somAtivado);
-      folder.fotoPlaca = '/samples/placa.jpg';
-      folder.placa = 'ABC4E78';
-      folder.status = 'em_preenchimento';
-      folder.updatedAt = new Date().toISOString();
-      await saveFolders(folders);
-      showToast('Foto de placa Mercosul carregada!', 'success');
-      renderApp();
-    });
-
     document.getElementById('btn-next-step-1').addEventListener('click', () => {
       playSound('click', appSettings.somAtivado);
       activeStep = 2;
@@ -1183,20 +1153,6 @@ function attachFolderEvents(folder) {
       fileInputPecas.removeAttribute('capture');
       fileInputPecas.click();
       setTimeout(() => fileInputPecas.setAttribute('capture', 'environment'), 1000);
-    });
-
-    document.getElementById('btn-sample-pecas').addEventListener('click', async () => {
-      playSound('shutter', appSettings.somAtivado);
-      folder.fotosPeca = [
-        '/samples/cabecote.jpg',
-        '/samples/bloco.jpg',
-        '/samples/bielas_pistoes.jpg'
-      ];
-      folder.status = 'em_preenchimento';
-      folder.updatedAt = new Date().toISOString();
-      await saveFolders(folders);
-      showToast('3 fotos reais de oficina adicionadas!', 'success');
-      renderApp();
     });
 
     // Remove photo
@@ -1407,16 +1363,6 @@ function attachFolderEvents(folder) {
       folder.updatedAt = new Date().toISOString();
       saveFolders(folders);
       renderFoldersTabs();
-    });
-
-    document.querySelectorAll('.chip-prefix').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const prefix = chip.getAttribute('data-prefix');
-        inputMotorNum.value = prefix;
-        folder.motorNum = prefix;
-        inputMotorNum.focus();
-        saveFolders(folders);
-      });
     });
 
     document.getElementById('input-observacoes')?.addEventListener('input', (e) => {
@@ -1784,6 +1730,55 @@ function showAuthScreen() {
 }
 
 /**
+ * Shows email verification message after sign up
+ */
+function showEmailVerificationMessage(email) {
+  if (!authScreen) return;
+  const card = authScreen.querySelector('.auth-card');
+  if (!card) return;
+
+  card.innerHTML = `
+    <div class="auth-brand">
+      <div class="auth-logo" aria-hidden="true" style="background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4a2 2 0 0 1 1.99-2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.09 6.09l1.78-1.78a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+      </div>
+      <h1 class="auth-title" style="font-size: 1.4rem;">VERIFIQUE SEU E-MAIL</h1>
+      <p class="auth-subtitle">Conta criada com sucesso!</p>
+    </div>
+
+    <div style="text-align: center; padding: 1.5rem 0;">
+      <div style="font-size: 3rem; margin-bottom: 1rem;">📧</div>
+      <div style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.5rem;">
+        <p style="font-size: 1rem; color: var(--text-primary); font-weight: 600; margin-bottom: 0.5rem;">
+          Enviamos um link de confirmação para:
+        </p>
+        <p style="font-size: 1.05rem; color: #10b981; font-weight: 700; font-family: 'JetBrains Mono', monospace; word-break: break-all;">
+          ${email}
+        </p>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.6;">
+        Clique no link no e-mail para ativar sua conta.<br>
+        Verifique também a <strong>caixa de spam</strong> ou lixo eletrônico.
+      </p>
+      <p style="font-size: 0.82rem; color: var(--text-muted);">
+        Após confirmar, volte aqui e faça o login normalmente.
+      </p>
+    </div>
+
+    <button type="button" class="btn btn-primary btn-auth" onclick="location.reload()">
+      <span>Já confirmei meu e-mail — Ir para Login</span>
+      <span class="btn-arrow">→</span>
+    </button>
+
+    <div class="auth-footer-note" style="margin-top: 1.5rem;">
+      <span>🔒 Criptografia SSL • Retífica Vision AI 2026</span>
+    </div>
+  `;
+}
+
+/**
  * Initializes Authentication System
  */
 async function initAuth() {
@@ -1891,7 +1886,6 @@ async function initAuth() {
 
       try {
         const authData = await signUpUser(email, password, { nome: name, oficina: workshop });
-        showToast('Conta criada com sucesso!', 'success');
         playSound('success', appSettings?.somAtivado);
         
         if (workshop && appSettings) {
@@ -1899,11 +1893,19 @@ async function initAuth() {
           saveSettings(appSettings);
         }
 
-        await enterApp({
-          email: authData.user?.email || email,
-          name: name || email.split('@')[0],
-          workshop: workshop || ''
-        });
+        // Check if email confirmation is required
+        const needsConfirmation = !authData.session && authData.user && !authData.user.confirmed_at;
+        if (needsConfirmation) {
+          // Show email verification screen
+          showEmailVerificationMessage(email);
+        } else {
+          showToast('Conta criada com sucesso!', 'success');
+          await enterApp({
+            email: authData.user?.email || email,
+            name: name || email.split('@')[0],
+            workshop: workshop || ''
+          });
+        }
       } catch (err) {
         console.warn('Erro ao criar conta:', err);
         regConfirmError.textContent = err.message || 'Não foi possível criar a conta. Tente novamente.';
