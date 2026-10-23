@@ -491,17 +491,20 @@ button, input, textarea, select {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 0.72rem;
+  background: #000000;
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.75rem;
   font-weight: 800;
 }
 
 .step-btn.active .step-number {
-  background: #000;
+  background: #000000;
   color: var(--accent-amber);
+  border-color: var(--accent-amber);
 }
 
 /* Step Content Panels */
@@ -1179,6 +1182,62 @@ button, input, textarea, select {
   padding: 1.25rem;
   max-height: 70vh;
   overflow-y: auto;
+}
+
+/* Archive Modal Search Bar - High Contrast Dark Numbers & Text */
+.archive-search-bar {
+  position: relative;
+  width: 100%;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.archive-search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.15rem;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.85;
+}
+
+#archive-search-input,
+.archive-search-bar input {
+  width: 100% !important;
+  padding: 0.9rem 1rem 0.9rem 2.9rem !important;
+  background: #ffffff !important;
+  border: 2.5px solid #0ea5e9 !important;
+  border-radius: var(--radius-md) !important;
+  color: #000000 !important; /* NÚMEROS E TEXTO PRETOS BEM ESCUROS */
+  -webkit-text-fill-color: #000000 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 1.15rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+  caret-color: #000000 !important;
+}
+
+#archive-search-input::placeholder,
+.archive-search-bar input::placeholder {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+}
+
+#archive-search-input:focus,
+.archive-search-bar input:focus {
+  outline: none !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.35) !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
 }
 
 .modal-footer {

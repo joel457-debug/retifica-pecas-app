@@ -1599,8 +1599,9 @@ async function openArchiveModal() {
         <div style="font-size: 0.85rem; color: var(--accent-cyan); font-weight: 700; margin-bottom: 0.25rem;">
           🏢 ${rec.oficinaNome || 'Retífica'} ${rec.localizacao?.texto ? `| 📍 ${rec.localizacao.texto}` : ''}
         </div>
-        <div style="font-size: 0.95rem; font-weight: 700;">
-          Placa: <span style="font-family:'JetBrains Mono';">${rec.placa || 'S/N'}</span> | Motor: <span style="font-family:'JetBrains Mono';">${rec.motorNum || 'S/N'}</span>
+        <div style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.35rem;">
+          Placa: <span style="font-family:'JetBrains Mono'; font-weight: 800; color: #ffffff; background: #000; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2);">${rec.placa || 'S/N'}</span> | 
+          Motor: <span style="font-family:'JetBrains Mono'; font-weight: 800; color: #f59e0b; background: #000; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(245,158,11,0.3);">${rec.motorNum || 'S/N'}</span>
         </div>
         ${rec.procedimentos?.length ? `
           <div style="font-size: 0.8rem; color: #fbbf24; margin-top: 0.25rem;">
