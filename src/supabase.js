@@ -19,8 +19,9 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        persistSession: false,
-        autoRefreshToken: false
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
       }
     })
   : null;
@@ -286,5 +287,140 @@ export async function saveSettingsToCloud(settings) {
     }
   } catch (err) {
     console.warn('Falha ao salvar configurações no Supabase:', err);
+  }
+}
+
+/**
+ * Strict Email validation helper
+ * @param {string} email
+ * @returns {boolean}
+ */
+export function validateEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  return emailRegex.test(trimmed);
+}
+
+/**
+ * Strong Password Strength Evaluation
+ * Evaluates length, uppercase, lowercase, numbers, and special characters.
+ * @param {string} password
+ * @returns {{ score: number, label: string, color: string, isValid: boolean, requirements: { length: boolean, upper: boolean, lower: boolean, number: boolean, special: boolean } }}
+ */
+export function checkPasswordStrength(password) {
+  const pwd = password || '';
+  const requirements = {
+    length: pwd.length >= 8,
+    upper: /[A-Z]/.test(pwd),
+    lower: /[a-z]/.test(pwd),
+    number: /[0-9]/.test(pwd),
+    special: /[^A-Za-z0-9]/.test(pwd)
+  };
+
+  let score = 0;
+  if (requirements.length) score++;
+  if (requirements.upper && requirements.lower) score++;
+  if (requirements.number) score++;
+  if (requirements.special) score++;
+
+  let label = 'Muito Fraca';
+  let color = '#ef4444'; // Red
+
+  if (score === 1) {
+    label = 'Fraca';
+    color = '#f87171';
+  } else if (score === 2) {
+    label = 'Média';
+    color = '#fbbf24'; // Yellow
+  } else if (score === 3) {
+    label = 'Forte';
+    color = '#10b981'; // Green
+  } else if (score === 4) {
+    label = 'Excelente';
+    color = '#06b6d4'; // Cyan
+  }
+
+  // Strong password requires length >= 8 and score >= 3
+  const isValid = requirements.length && score >= 3;
+
+  return {
+    score,
+    label,
+    color,
+    isValid,
+    requirements
+  };
+}
+
+/**
+ * Supabase Auth: Sign In with Email & Password
+ */
+export async function signInUser(email, password) {
+  if (!supabase) {
+    throw new Error('Cliente Supabase não configurado');
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Supabase Auth: Sign Up new User
+ */
+export async function signUpUser(email, password, metadata = {}) {
+  if (!supabase) {
+    throw new Error('Cliente Supabase não configurado');
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: metadata
+    }
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Supabase Auth: Reset Password via Email
+ */
+export async function resetPasswordForEmail(email) {
+  if (!supabase) {
+    throw new Error('Cliente Supabase não configurado');
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const redirectUrl = window.location.origin;
+  const { data, error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+    redirectTo: redirectUrl
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Supabase Auth: Sign Out
+ */
+export async function signOutUser() {
+  if (!supabase) return;
+  await supabase.auth.signOut();
+}
+
+/**
+ * Get current authenticated session
+ */
+export async function getCurrentSession() {
+  if (!supabase) return null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  } catch (err) {
+    return null;
   }
 }

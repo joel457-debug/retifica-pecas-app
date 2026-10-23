@@ -5,6 +5,15 @@
  */
 
 import { loadFolders, saveFolders, loadSettings, saveSettings, loadArchive, archiveFolder, INITIAL_FOLDERS, testSupabaseConnection, isSupabaseConfigured } from './storage.js';
+import { 
+  validateEmail, 
+  checkPasswordStrength, 
+  signInUser, 
+  signUpUser, 
+  resetPasswordForEmail, 
+  signOutUser, 
+  getCurrentSession 
+} from './supabase.js';
 import { analyzeEnginePhotos, COMMON_EXTRA_PARTS } from './ai-service.js';
 import { shareViaWhatsApp, shareViaEmail, copyToClipboard, buildTextSummary } from './sharing.js';
 import { playSound } from './audio-feedback.js';
@@ -59,6 +68,52 @@ const zoomImageCaption = document.getElementById('zoom-image-caption');
 // Hidden File Inputs
 const fileInputPlaca = document.getElementById('file-input-placa');
 const fileInputPecas = document.getElementById('file-input-pecas');
+
+// Auth Screen Elements
+const authScreen = document.getElementById('auth-screen');
+const appContainer = document.getElementById('app');
+const userProfileBadge = document.getElementById('user-profile-badge');
+const userAvatarInitial = document.getElementById('user-avatar-initial');
+const userEmailDisplay = document.getElementById('user-email-display');
+const btnLogout = document.getElementById('btn-logout');
+
+const tabBtnLogin = document.getElementById('tab-btn-login');
+const tabBtnRegister = document.getElementById('tab-btn-register');
+const formLogin = document.getElementById('form-login');
+const formRegister = document.getElementById('form-register');
+const formForgot = document.getElementById('form-forgot');
+const btnGotoForgot = document.getElementById('btn-goto-forgot');
+const btnBackToLogin = document.getElementById('btn-back-to-login');
+const btnGuestLogin = document.getElementById('btn-guest-login');
+
+const loginEmailInput = document.getElementById('login-email');
+const loginPwdInput = document.getElementById('login-password');
+const loginEmailError = document.getElementById('login-email-error');
+const loginPwdError = document.getElementById('login-password-error');
+const toggleLoginPwd = document.getElementById('toggle-login-pwd');
+
+const regNameInput = document.getElementById('reg-name');
+const regWorkshopInput = document.getElementById('reg-workshop');
+const regEmailInput = document.getElementById('reg-email');
+const regPwdInput = document.getElementById('reg-password');
+const regPwdConfirmInput = document.getElementById('reg-password-confirm');
+const regEmailError = document.getElementById('reg-email-error');
+const regConfirmError = document.getElementById('reg-confirm-error');
+const toggleRegPwd = document.getElementById('toggle-reg-pwd');
+
+const forgotEmailInput = document.getElementById('forgot-email');
+const forgotEmailError = document.getElementById('forgot-email-error');
+
+const pwdMeterFill = document.getElementById('pwd-meter-fill');
+const pwdStrengthLabel = document.getElementById('pwd-strength-label');
+const reqLength = document.getElementById('req-length');
+const reqUpper = document.getElementById('req-upper');
+const reqLower = document.getElementById('req-lower');
+const reqNumber = document.getElementById('req-number');
+const reqSpecial = document.getElementById('req-special');
+
+let currentUser = null;
+let isAppInitialized = false;
 
 // Initialize
 async function initApp() {
@@ -1590,5 +1645,364 @@ async function openArchiveModal() {
   modalArchive.classList.add('open');
 }
 
-// Start App
-initApp();
+// ==============================================================================
+// AUTHENTICATION CONTROLLER (Login, Cadastro & Esqueci Senha)
+// ==============================================================================
+
+/**
+ * Updates Real-time Password Strength UI Meter and Checklist
+ */
+function updatePasswordStrengthUI(password) {
+  const result = checkPasswordStrength(password);
+  
+  // Percent bar
+  let widthPercent = 0;
+  if (password && password.length > 0) {
+    widthPercent = Math.min(100, Math.max(15, (result.score / 4) * 100));
+  }
+  if (pwdMeterFill) {
+    pwdMeterFill.style.width = widthPercent + '%';
+    pwdMeterFill.style.backgroundColor = result.color;
+  }
+  if (pwdStrengthLabel) {
+    pwdStrengthLabel.textContent = !password || password.length === 0 ? 'Digite uma senha' : result.label;
+    pwdStrengthLabel.style.color = result.color;
+  }
+
+  // Checklist updates
+  updateReqItem(reqLength, result.requirements.length);
+  updateReqItem(reqUpper, result.requirements.upper);
+  updateReqItem(reqLower, result.requirements.lower);
+  updateReqItem(reqNumber, result.requirements.number);
+  updateReqItem(reqSpecial, result.requirements.special);
+
+  return result;
+}
+
+function updateReqItem(el, isValid) {
+  if (!el) return;
+  const icon = el.querySelector('span');
+  if (isValid) {
+    el.classList.add('valid');
+    if (icon) icon.textContent = '✓';
+  } else {
+    el.classList.remove('valid');
+    if (icon) icon.textContent = '✕';
+  }
+}
+
+/**
+ * Setup Show/Hide Password buttons
+ */
+function setupPasswordToggles() {
+  if (toggleLoginPwd && loginPwdInput) {
+    toggleLoginPwd.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isPwd = loginPwdInput.type === 'password';
+      loginPwdInput.type = isPwd ? 'text' : 'password';
+      toggleLoginPwd.textContent = isPwd ? '🙈' : '👁️';
+    });
+  }
+  if (toggleRegPwd && regPwdInput) {
+    toggleRegPwd.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isPwd = regPwdInput.type === 'password';
+      regPwdInput.type = isPwd ? 'text' : 'password';
+      toggleRegPwd.textContent = isPwd ? '🙈' : '👁️';
+    });
+  }
+}
+
+/**
+ * Switch between Login, Register and Forgot Password tabs
+ */
+function switchAuthTab(target) {
+  playSound('click', appSettings?.somAtivado);
+  // Clear error messages
+  if (loginEmailError) loginEmailError.textContent = '';
+  if (loginPwdError) loginPwdError.textContent = '';
+  if (regEmailError) regEmailError.textContent = '';
+  if (regConfirmError) regConfirmError.textContent = '';
+  if (forgotEmailError) forgotEmailError.textContent = '';
+
+  if (target === 'login') {
+    tabBtnLogin?.classList.add('active');
+    tabBtnRegister?.classList.remove('active');
+    formLogin?.classList.add('active');
+    formRegister?.classList.remove('active');
+    formForgot?.classList.remove('active');
+  } else if (target === 'register') {
+    tabBtnLogin?.classList.remove('active');
+    tabBtnRegister?.classList.add('active');
+    formLogin?.classList.remove('active');
+    formRegister?.classList.add('active');
+    formForgot?.classList.remove('active');
+  } else if (target === 'forgot') {
+    tabBtnLogin?.classList.remove('active');
+    tabBtnRegister?.classList.remove('active');
+    formLogin?.classList.remove('active');
+    formRegister?.classList.remove('active');
+    formForgot?.classList.add('active');
+  }
+}
+
+/**
+ * Enters the main application
+ */
+async function enterApp(user) {
+  currentUser = user;
+  try {
+    localStorage.setItem('retifica_user_session', JSON.stringify(user));
+  } catch (e) {}
+
+  if (userAvatarInitial) {
+    const initial = (user.name || user.email || 'M').trim().charAt(0).toUpperCase();
+    userAvatarInitial.textContent = initial;
+  }
+  if (userEmailDisplay) {
+    const displayName = user.name || (user.email ? user.email.split('@')[0] : 'Oficina');
+    userEmailDisplay.textContent = displayName;
+  }
+
+  if (authScreen) authScreen.style.display = 'none';
+  if (appContainer) appContainer.style.display = 'flex';
+
+  if (!isAppInitialized) {
+    isAppInitialized = true;
+    await initApp();
+  }
+}
+
+/**
+ * Displays the authentication screen
+ */
+function showAuthScreen() {
+  if (appContainer) appContainer.style.display = 'none';
+  if (authScreen) authScreen.style.display = 'flex';
+  switchAuthTab('login');
+}
+
+/**
+ * Initializes Authentication System
+ */
+async function initAuth() {
+  setupPasswordToggles();
+
+  // Tab switch buttons
+  if (tabBtnLogin) tabBtnLogin.addEventListener('click', () => switchAuthTab('login'));
+  if (tabBtnRegister) tabBtnRegister.addEventListener('click', () => switchAuthTab('register'));
+  if (btnGotoForgot) btnGotoForgot.addEventListener('click', () => switchAuthTab('forgot'));
+  if (btnBackToLogin) btnBackToLogin.addEventListener('click', () => switchAuthTab('login'));
+
+  // Live password strength listener
+  if (regPwdInput) {
+    regPwdInput.addEventListener('input', () => {
+      updatePasswordStrengthUI(regPwdInput.value);
+    });
+  }
+
+  // 1. SUBMIT LOGIN FORM
+  if (formLogin) {
+    formLogin.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginEmailError.textContent = '';
+      loginPwdError.textContent = '';
+
+      const email = loginEmailInput.value.trim();
+      const password = loginPwdInput.value;
+
+      if (!validateEmail(email)) {
+        loginEmailError.textContent = 'Digite um e-mail válido com formato nome@dominio.com';
+        loginEmailInput.focus();
+        return;
+      }
+      if (!password) {
+        loginPwdError.textContent = 'Informe sua senha de acesso.';
+        loginPwdInput.focus();
+        return;
+      }
+
+      const submitBtn = document.getElementById('btn-submit-login');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Verificando...</span>';
+
+      try {
+        const authData = await signInUser(email, password);
+        showToast('Acesso autorizado! Bem-vindo.', 'success');
+        playSound('success', appSettings?.somAtivado);
+        await enterApp({
+          email: authData.user?.email || email,
+          name: authData.user?.user_metadata?.nome || email.split('@')[0],
+          workshop: authData.user?.user_metadata?.oficina || ''
+        });
+      } catch (err) {
+        console.warn('Erro no login Supabase:', err);
+        const msg = err.message || '';
+        if (msg.includes('Invalid login credentials') || msg.includes('invalid_grant')) {
+          loginPwdError.textContent = 'E-mail ou senha incorretos.';
+        } else if (msg.includes('Email not confirmed')) {
+          loginEmailError.textContent = 'Por favor, confirme seu e-mail no link enviado antes de entrar.';
+        } else {
+          loginPwdError.textContent = msg || 'Erro ao realizar login. Verifique seus dados.';
+        }
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Entrar no Sistema</span><span class="btn-arrow">→</span>';
+      }
+    });
+  }
+
+  // 2. SUBMIT REGISTER FORM
+  if (formRegister) {
+    formRegister.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      regEmailError.textContent = '';
+      regConfirmError.textContent = '';
+
+      const name = regNameInput.value.trim();
+      const workshop = regWorkshopInput.value.trim();
+      const email = regEmailInput.value.trim();
+      const password = regPwdInput.value;
+      const passwordConfirm = regPwdConfirmInput.value;
+
+      if (!validateEmail(email)) {
+        regEmailError.textContent = 'Digite um endereço de e-mail válido (ex: seu@email.com).';
+        regEmailInput.focus();
+        return;
+      }
+
+      const strength = checkPasswordStrength(password);
+      if (!strength.isValid) {
+        regConfirmError.textContent = 'A senha precisa ser forte (mínimo 8 caracteres, com maiúsculas, minúsculas, números e caracteres especiais).';
+        regPwdInput.focus();
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        regConfirmError.textContent = 'As senhas digitadas não coincidem. Digite novamente.';
+        regPwdConfirmInput.focus();
+        return;
+      }
+
+      const submitBtn = document.getElementById('btn-submit-register');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Criando conta segura...</span>';
+
+      try {
+        const authData = await signUpUser(email, password, { nome: name, oficina: workshop });
+        showToast('Conta criada com sucesso!', 'success');
+        playSound('success', appSettings?.somAtivado);
+        
+        if (workshop && appSettings) {
+          appSettings.empresaNome = workshop;
+          saveSettings(appSettings);
+        }
+
+        await enterApp({
+          email: authData.user?.email || email,
+          name: name || email.split('@')[0],
+          workshop: workshop || ''
+        });
+      } catch (err) {
+        console.warn('Erro ao criar conta:', err);
+        regConfirmError.textContent = err.message || 'Não foi possível criar a conta. Tente novamente.';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Criar Conta Segura</span><span class="btn-arrow">✓</span>';
+      }
+    });
+  }
+
+  // 3. SUBMIT FORGOT PASSWORD FORM
+  if (formForgot) {
+    formForgot.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      forgotEmailError.textContent = '';
+
+      const email = forgotEmailInput.value.trim();
+      if (!validateEmail(email)) {
+        forgotEmailError.textContent = 'Digite um e-mail válido cadastrado no sistema.';
+        forgotEmailInput.focus();
+        return;
+      }
+
+      const submitBtn = document.getElementById('btn-submit-forgot');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Enviando link...</span>';
+
+      try {
+        await resetPasswordForEmail(email);
+        showToast(`Link de recuperação enviado para ${email}! Verifique seu e-mail.`, 'success');
+        playSound('success', appSettings?.somAtivado);
+        setTimeout(() => {
+          switchAuthTab('login');
+        }, 2200);
+      } catch (err) {
+        console.warn('Erro ao resetar senha:', err);
+        forgotEmailError.textContent = err.message || 'Erro ao enviar e-mail de recuperação.';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Enviar Link de Recuperação</span><span class="btn-arrow">📨</span>';
+      }
+    });
+  }
+
+  // 4. GUEST / DEMO LOGIN
+  if (btnGuestLogin) {
+    btnGuestLogin.addEventListener('click', async () => {
+      playSound('click', appSettings?.somAtivado);
+      showToast('Entrando no modo demonstração offline da oficina...', 'warning');
+      await enterApp({
+        email: 'mecanico.demo@retifica.local',
+        name: 'Mecânico Convidado',
+        workshop: 'Retífica Especializada'
+      });
+    });
+  }
+
+  // 5. LOGOUT BUTTON
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      if (confirm('Deseja realmente sair da sua conta no Retífica Vision?')) {
+        playSound('click', appSettings?.somAtivado);
+        try {
+          await signOutUser();
+        } catch (e) {}
+        localStorage.removeItem('retifica_user_session');
+        currentUser = null;
+        showAuthScreen();
+        showToast('Você saiu da sua conta com sucesso.', 'warning');
+      }
+    });
+  }
+
+  // 6. CHECK INITIAL SESSION
+  try {
+    const supabaseSession = await getCurrentSession();
+    if (supabaseSession?.user) {
+      await enterApp({
+        email: supabaseSession.user.email,
+        name: supabaseSession.user.user_metadata?.nome || supabaseSession.user.email.split('@')[0],
+        workshop: supabaseSession.user.user_metadata?.oficina || ''
+      });
+      return;
+    }
+
+    const cachedRaw = localStorage.getItem('retifica_user_session');
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw);
+      if (cached && cached.email) {
+        await enterApp(cached);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao verificar sessão inicial:', e);
+  }
+
+  // Se não estiver logado, exibe tela de login
+  showAuthScreen();
+}
+
+// Iniciar Sistema de Autenticação & App
+initAuth();

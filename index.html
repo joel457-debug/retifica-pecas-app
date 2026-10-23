@@ -22,8 +22,174 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <!-- Fullscreen Auth Screen (Login / Criar Conta / Esqueci Senha) -->
+    <div id="auth-screen" class="auth-wrapper">
+      <div class="auth-card">
+        <!-- Brand / Header -->
+        <div class="auth-brand">
+          <div class="auth-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+          <h1 class="auth-title">RETÍFICA VISION AI</h1>
+          <p class="auth-subtitle">Registro & Identificação Inteligente de Motores</p>
+          <div class="auth-badge-pill">
+            <span class="auth-dot"></span>
+            Acesso Seguro da Oficina
+          </div>
+        </div>
+
+        <!-- Auth Switch Tabs -->
+        <div class="auth-tabs" id="auth-nav-tabs">
+          <button type="button" class="auth-tab-btn active" id="tab-btn-login">Entrar</button>
+          <button type="button" class="auth-tab-btn" id="tab-btn-register">Criar Conta</button>
+        </div>
+
+        <!-- 1. FORMULÁRIO DE LOGIN -->
+        <form id="form-login" class="auth-form active" novalidate>
+          <div class="form-group">
+            <label for="login-email">E-mail Profissional</label>
+            <div class="input-with-icon">
+              <span class="input-icon">✉️</span>
+              <input type="email" id="login-email" placeholder="retifica@oficina.com.br" required autocomplete="email" />
+            </div>
+            <span class="field-validation-msg" id="login-email-error"></span>
+          </div>
+
+          <div class="form-group">
+            <div class="field-label-row">
+              <label for="login-password">Senha de Acesso</label>
+              <button type="button" class="btn-link" id="btn-goto-forgot">Esqueci minha senha</button>
+            </div>
+            <div class="input-with-icon">
+              <span class="input-icon">🔒</span>
+              <input type="password" id="login-password" placeholder="Digite sua senha" required autocomplete="current-password" />
+              <button type="button" class="btn-toggle-pwd" id="toggle-login-pwd" title="Mostrar/ocultar senha" tabindex="-1">👁️</button>
+            </div>
+            <span class="field-validation-msg" id="login-password-error"></span>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-auth" id="btn-submit-login">
+            <span>Entrar no Sistema</span>
+            <span class="btn-arrow">→</span>
+          </button>
+
+          <div class="auth-divider">
+            <span>OU</span>
+          </div>
+
+          <button type="button" class="btn btn-secondary btn-auth-guest" id="btn-guest-login">
+            ⚡ Acessar Modo Convidado / Oficina Offline
+          </button>
+        </form>
+
+        <!-- 2. FORMULÁRIO DE CADASTRO (CRIAR CONTA) -->
+        <form id="form-register" class="auth-form" novalidate>
+          <div class="form-group">
+            <label for="reg-name">Nome do Profissional / Mecânico</label>
+            <div class="input-with-icon">
+              <span class="input-icon">👤</span>
+              <input type="text" id="reg-name" placeholder="Ex: Joel Marcos" required autocomplete="name" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-workshop">Nome da Oficina / Retífica</label>
+            <div class="input-with-icon">
+              <span class="input-icon">🏭</span>
+              <input type="text" id="reg-workshop" placeholder="Ex: Retífica Precision Motors" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-email">E-mail Válido</label>
+            <div class="input-with-icon">
+              <span class="input-icon">✉️</span>
+              <input type="email" id="reg-email" placeholder="seu-email@dominio.com" required autocomplete="email" />
+            </div>
+            <span class="field-validation-msg" id="reg-email-error"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-password">Criar Senha Forte</label>
+            <div class="input-with-icon">
+              <span class="input-icon">🔑</span>
+              <input type="password" id="reg-password" placeholder="Crie uma senha segura" required autocomplete="new-password" />
+              <button type="button" class="btn-toggle-pwd" id="toggle-reg-pwd" title="Mostrar/ocultar senha" tabindex="-1">👁️</button>
+            </div>
+
+            <!-- Medidor de Força da Senha -->
+            <div class="pwd-meter-box">
+              <div class="pwd-meter-header">
+                <span>Força da Senha:</span>
+                <strong id="pwd-strength-label" style="color: #ef4444;">Digite uma senha</strong>
+              </div>
+              <div class="pwd-meter-bar">
+                <div class="pwd-meter-fill" id="pwd-meter-fill"></div>
+              </div>
+            </div>
+
+            <!-- Checklist Dinâmico de Requisitos da Senha -->
+            <ul class="pwd-checklist" id="pwd-checklist">
+              <li id="req-length" class="req-item"><span>✕</span> Mínimo de 8 caracteres</li>
+              <li id="req-upper" class="req-item"><span>✕</span> Pelo menos 1 letra maiúscula (A-Z)</li>
+              <li id="req-lower" class="req-item"><span>✕</span> Pelo menos 1 letra minúscula (a-z)</li>
+              <li id="req-number" class="req-item"><span>✕</span> Pelo menos 1 número (0-9)</li>
+              <li id="req-special" class="req-item"><span>✕</span> Pelo menos 1 caractere especial (!@#$...)</li>
+            </ul>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-password-confirm">Confirmar Senha</label>
+            <div class="input-with-icon">
+              <span class="input-icon">🔒</span>
+              <input type="password" id="reg-password-confirm" placeholder="Repita a senha exata" required autocomplete="new-password" />
+            </div>
+            <span class="field-validation-msg" id="reg-confirm-error"></span>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-auth" id="btn-submit-register">
+            <span>Criar Conta Segura</span>
+            <span class="btn-arrow">✓</span>
+          </button>
+        </form>
+
+        <!-- 3. FORMULÁRIO ESQUECI MINHA SENHA -->
+        <form id="form-forgot" class="auth-form" novalidate>
+          <div class="forgot-header">
+            <h3>Recuperar Senha de Acesso</h3>
+            <p>Digite seu e-mail cadastrado. Enviaremos um link de recuperação para você redefinir sua senha com segurança.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="forgot-email">E-mail Cadastrado</label>
+            <div class="input-with-icon">
+              <span class="input-icon">✉️</span>
+              <input type="email" id="forgot-email" placeholder="retifica@oficina.com.br" required autocomplete="email" />
+            </div>
+            <span class="field-validation-msg" id="forgot-email-error"></span>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-auth" id="btn-submit-forgot">
+            <span>Enviar Link de Recuperação</span>
+            <span class="btn-arrow">📨</span>
+          </button>
+
+          <button type="button" class="btn btn-secondary btn-auth-back" id="btn-back-to-login">
+            ← Voltar para o Login
+          </button>
+        </form>
+
+        <!-- Footer -->
+        <div class="auth-footer-note">
+          <span>🔒 Criptografia SSL • Retífica Vision AI 2026</span>
+        </div>
+      </div>
+    </div>
+
     <!-- App Container -->
-    <div id="app" class="app-layout">
+    <div id="app" class="app-layout" style="display: none;">
 
       <!-- Top Header Navigation -->
       <header class="app-header" role="banner">
@@ -67,6 +233,17 @@
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
+
+          <!-- User Profile & Logout Button -->
+          <div class="user-profile-badge" id="user-profile-badge" title="Usuário Conectado">
+            <span class="user-avatar" id="user-avatar-initial">M</span>
+            <span class="user-email-text" id="user-email-display">mecanico</span>
+            <button id="btn-logout" class="btn-logout-icon" title="Sair da Conta (Logout)" aria-label="Sair">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 
