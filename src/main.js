@@ -4,7 +4,7 @@
  * workshop procedures, GPS location, review, sharing & offline storage.
  */
 
-import { loadFolders, saveFolders, loadSettings, saveSettings, loadArchive, archiveFolder, INITIAL_FOLDERS } from './storage.js';
+import { loadFolders, saveFolders, loadSettings, saveSettings, loadArchive, archiveFolder, INITIAL_FOLDERS, testSupabaseConnection, isSupabaseConfigured } from './storage.js';
 import { analyzeEnginePhotos, COMMON_EXTRA_PARTS } from './ai-service.js';
 import { shareViaWhatsApp, shareViaEmail, copyToClipboard, buildTextSummary } from './sharing.js';
 import { playSound } from './audio-feedback.js';
@@ -41,6 +41,10 @@ const foldersTabContainer = document.getElementById('folders-tab-container');
 const activeFolderContent = document.getElementById('active-folder-content');
 const networkStatusBtn = document.getElementById('btn-toggle-network');
 const networkStatusText = document.getElementById('network-status-text');
+const btnCloudSync = document.getElementById('btn-cloud-sync');
+const cloudStatusText = document.getElementById('cloud-status-text');
+const btnModalSyncSupabase = document.getElementById('btn-modal-sync-supabase');
+const supabaseModalBadge = document.getElementById('supabase-modal-badge');
 const archiveCountBadge = document.getElementById('archive-count-badge');
 const toastContainer = document.getElementById('toast-container');
 
@@ -86,6 +90,61 @@ async function initApp() {
   setupLiveCameraEvents();
   updateArchiveBadge();
   renderApp();
+  checkCloudStatus();
+}
+
+/**
+ * Supabase Cloud Sync UI Controller
+ */
+async function checkCloudStatus() {
+  if (!btnCloudSync) return;
+  if (!isSupabaseConfigured || isNetworkOffline) {
+    btnCloudSync.className = 'status-pill status-cloud';
+    if (cloudStatusText) cloudStatusText.textContent = 'OFFLINE';
+    if (supabaseModalBadge) {
+      supabaseModalBadge.textContent = 'OFFLINE';
+      supabaseModalBadge.style.color = '#fb923c';
+    }
+    return;
+  }
+
+  const isConnected = await testSupabaseConnection();
+  if (isConnected) {
+    btnCloudSync.className = 'status-pill status-cloud cloud-synced';
+    if (cloudStatusText) cloudStatusText.textContent = 'SUPABASE';
+    if (supabaseModalBadge) {
+      supabaseModalBadge.textContent = 'CONECTADO';
+      supabaseModalBadge.style.color = '#34d399';
+    }
+  } else {
+    btnCloudSync.className = 'status-pill status-cloud';
+    if (cloudStatusText) cloudStatusText.textContent = 'LOCAL';
+    if (supabaseModalBadge) {
+      supabaseModalBadge.textContent = 'TABELAS PENDENTES';
+      supabaseModalBadge.style.color = '#f59e0b';
+    }
+  }
+}
+
+async function syncCloudNow() {
+  playSound('click', appSettings.somAtivado);
+  if (btnCloudSync) {
+    btnCloudSync.className = 'status-pill status-cloud cloud-syncing';
+    if (cloudStatusText) cloudStatusText.textContent = 'SYNC...';
+  }
+  showToast('Sincronizando com o Supabase...', 'warning');
+
+  try {
+    await saveFolders(folders);
+    await saveSettings(appSettings);
+    await checkCloudStatus();
+    showToast('Sincronização com Supabase concluída com sucesso!', 'success');
+    playSound('success', appSettings.somAtivado);
+  } catch (err) {
+    console.warn('Erro ao sincronizar com Supabase:', err);
+    showToast('Falha na sincronização. Os dados continuam salvos offline.', 'warning');
+    await checkCloudStatus();
+  }
 }
 
 /**
@@ -113,6 +172,7 @@ function updateNetworkUI() {
     networkStatusBtn.className = 'status-pill status-online';
     networkStatusText.textContent = 'ONLINE';
   }
+  checkCloudStatus();
 }
 
 function setupHeaderEvents() {
@@ -126,6 +186,14 @@ function setupHeaderEvents() {
     showToast(isNetworkOffline ? 'Modo OFFLINE ativado para testes!' : 'Modo ONLINE ativado!', isNetworkOffline ? 'warning' : 'success');
     renderApp();
   });
+
+  // Supabase Cloud Sync Manual Triggers
+  if (btnCloudSync) {
+    btnCloudSync.addEventListener('click', syncCloudNow);
+  }
+  if (btnModalSyncSupabase) {
+    btnModalSyncSupabase.addEventListener('click', syncCloudNow);
+  }
 
   // Settings Modal
   document.getElementById('btn-open-settings').addEventListener('click', () => {
